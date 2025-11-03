@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindMaster Game</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #121212;
+    color: #fff;
+    font-family: "Poppins", sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    color: #00e676;
+    margin-top: 10px;
+    font-size: 1.8em;
+  }
+
+  .hearts {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+
+  .heart {
+    font-size: 1.6em;
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .fade {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 6px;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 10px;
+  }
+
+  button.num {
+    padding: 10px;
+    background: #1f1f1f;
+    color: #fff;
+    border: 1px solid #333;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 14px;
+  }
+
+  button.num:hover {
+    background: #00e676;
+    color: #000;
+    transform: scale(1.05);
+  }
+
+  button.num:disabled {
+    background: #444;
+    color: #aaa;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .scoreboard {
+    width: 90%;
+    max-width: 500px;
+    margin: 15px auto;
+    border-collapse: collapse;
+  }
+
+  .scoreboard th, .scoreboard td {
+    border: 1px solid #444;
+    padding: 8px;
+  }
+
+  #nextRound {
+    padding: 10px 25px;
+    background: #00e676;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 15px;
+    font-weight: 600;
+    display: none;
+  }
+
+  /* Popup Modal */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.75);
+  }
+
+  .modal-content {
+    background: #1f1f1f;
+    margin: 12% auto;
+    padding: 20px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 0 15px #00e676;
+    animation: popup 0.4s ease;
+  }
+
+  @keyframes popup {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .close-btn {
+    background: #00e676;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 10px;
+    font-weight: 600;
+  }
+
+  .close-btn:hover { background: #00b25c; }
+
+  @media (max-width: 600px) {
+    #grid { max-width: 95%; gap: 5px; }
+    button.num { padding: 8px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>🧠 MindMaster</h1>
+
+<div class="hearts" id="hearts"></div>
+
+<div id="grid"></div>
+
+<table class="scoreboard">
+  <thead>
+    <tr><th>Player</th><th>Lives</th></tr>
+  </thead>
+  <tbody id="scoreTable"></tbody>
+</table>
+
+<button id="nextRound">Next Round</button>
+
+<!-- Popup Modal -->
+<div id="resultModal" class="modal">
+  <div class="modal-content" id="modalContent"></div>
+</div>
+
+<!-- Audio -->
+<audio id="clickSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_2e26b5fa55.mp3?filename=button-124476.mp3"></audio>
+<audio id="loseSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_60d00d37d0.mp3?filename=wrong-buzzer-125616.mp3"></audio>
+
+<script>
+let players = [
+  { name: "You", points: 5 },
+  { name: "Bot 1", points: 5 },
+  { name: "Bot 2", points: 5 },
+  { name: "Bot 3", points: 5 },
+  { name: "Bot 4", points: 5 },
+];
+
+function renderHearts() {
+  const heartDiv = document.getElementById("hearts");
+  heartDiv.innerHTML = "";
+  const player = players[0];
+  for (let i = 0; i < 5; i++) {
+    const span = document.createElement("span");
+    span.className = "heart";
+    span.innerHTML = i < player.points ? "❤️" : "🖤";
+    heartDiv.appendChild(span);
+  }
+}
+
+function fadeHeart() {
+  const hearts = document.querySelectorAll(".heart");
+  for (let i = hearts.length - 1; i >= 0; i--) {
+    if (hearts[i].innerHTML === "❤️") {
+      hearts[i].classList.add("fade");
+      setTimeout(() => { hearts[i].innerHTML = "🖤"; }, 600);
+      break;
+    }
+  }
+}
+
+function renderGrid() {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  for (let i = 0; i <= 100; i++) {
+    const btn = document.createElement("button");
+    btn.innerText = i;
+    btn.className = "num";
+    btn.onclick = () => selectNumber(i);
+    grid.appendChild(btn);
+  }
+  renderScores();
+  renderHearts();
+}
+
+function renderScores() {
+  const tbody = document.getElementById("scoreTable");
+  tbody.innerHTML = "";
+  players.forEach(p => {
+    const eliminated = p.points <= 0 ? "❌" : p.points;
+    tbody.innerHTML += `<tr><td>${p.name}</td><td>${eliminated}</td></tr>`;
+  });
+}
+
+function selectNumber(num) {
+  document.getElementById("clickSound").play();
+  document.querySelectorAll("button.num").forEach(b => b.disabled = true);
+  const yourChoice = num;
+
+  const botChoices = [];
+  for (let i = 1; i < 5; i++) {
+    botChoices.push(Math.floor(Math.random() * 101));
+  }
+
+  const allChoices = [yourChoice, ...botChoices];
+  const avg = allChoices.reduce((a, b) => a + b, 0) / allChoices.length;
+  const target = avg * 0.8;
+
+  // Find closest to target
+  let winnerIndex = 0;
+  let minDiff = Infinity;
+  allChoices.forEach((n, i) => {
+    const diff = Math.abs(n - target);
+    if (diff < minDiff) { minDiff = diff; winnerIndex = i; }
+  });
+
+  const winner = players[winnerIndex];
+
+  // Updated rule: only losers lose 1, winner stays same
+  players.forEach((p, i) => {
+    if (i !== winnerIndex && p.points > 0) {
+      p.points -= 1;
+      if (i === 0) fadeHeart();
+      document.getElementById("loseSound").play();
+    }
+  });
+
+  renderHearts();
+  renderScores();
+
+  showPopup(`
+    <h2>Round Results</h2>
+    <p><strong>Your Choice:</strong> ${yourChoice}</p>
+    <p><strong>Bot Choices:</strong> ${botChoices.join(", ")}</p>
+    <p><strong>Average:</strong> ${avg.toFixed(2)}</p>
+    <p><strong>Target (×0.8):</strong> ${target.toFixed(2)}</p>
+    <h3>🏆 Winner: ${winner.name}</h3>
+  `);
+
+  document.getElementById("nextRound").style.display = "inline-block";
+}
+
+function showPopup(htmlContent) {
+  const modal = document.getElementById("resultModal");
+  const modalContent = document.getElementById("modalContent");
+  modalContent.innerHTML = htmlContent + `<button class="close-btn" onclick="closePopup()">OK</button>`;
+  modal.style.display = "block";
+}
+
+function closePopup() {
+  document.getElementById("resultModal").style.display = "none";
+}
+
+document.getElementById("nextRound").onclick = () => {
+  let active = players.filter(p => p.points > 0);
+  if (active.length === 1) {
+    showPopup(`<h2>🎉 ${active[0].name} Wins the Game!</h2>`);
+    document.getElementById("nextRound").style.display = "none";
+    return;
+  }
+  document.getElementById("nextRound").style.display = "none";
+  renderGrid();
+};
+
+renderGrid();
+</script>
+
+</body>
+</html>
